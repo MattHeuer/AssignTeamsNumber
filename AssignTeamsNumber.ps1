@@ -32,7 +32,7 @@ Function Add-LogEntry {
 }
 
 $Today = Get-Date -Format "ddMMyyyy"
-$Logfile = "\\dhw.wa.gov.au\CorporateData\IS\TSS\Support Centre\EntOps\Scripts\Logs\ProvisionTeamsNumberLog_$Today.txt"
+$Logfile = "#Log file path#"
 $Admin = $env:UserName
 
 # Checks for an active session and then connects to Skype for Business Online
@@ -55,14 +55,14 @@ $UPN = Read-Host "Enter the affected users UPN"
 # Queries the account to determine if it already has an active Teams license, then checks to see if they already have a number assgined. If both of these checks are passed the script will continue otherwise it will exit.
 Add-LogEntry -LogLevel Info -LogEntry "Checking $UPN in SFBOnline..."
 $Number = Get-CsOnlineUser $UPN | Select-Object -ExpandProperty LineURI
-$License = ((Get-ADUser -Filter "UserPrincipalName -eq '$UPN'" -Properties *).memberof -like "CN=APP_Microsoft_Office_365_PhoneSystem*")
+$License = ((Get-ADUser -Filter "UserPrincipalName -eq '$UPN'" -Properties *).memberof -like "#Teams license group distinguished name#")
 if (!$License) {
     Add-LogEntry -LogLevel Error -LogEntry "$UPN doesn't have a Teams license, exiting script"
     Exit
-} elseif ($License -eq 'CN=APP_Microsoft_Office_365_PhoneSystem,OU=Application Permissioning Groups,OU=Groups,OU=Housing,DC=dhw,DC=wa,DC=gov,DC=au' -and $number -gt 0) {
+} elseif ($License -eq '#Teams license group distinguished name#' -and $number -gt 0) {
     Add-LogEntry -LogLevel Warning -LogEntry "$UPN already has $Number assigned to them in SFBOnline!"
     Exit
-} elseif ($License -eq 'CN=APP_Microsoft_Office_365_PhoneSystem,OU=Application Permissioning Groups,OU=Groups,OU=Housing,DC=dhw,DC=wa,DC=gov,DC=au' -and $number -lt 1) {
+} elseif ($License -eq '#Teams license group distinguished name#' -and $number -lt 1) {
     Add-LogEntry -LogLevel Info -LogEntry "$UPN has a license but no number assigned"
 }
 
@@ -82,8 +82,8 @@ $InternationalPolicy = Read-Host -Prompt "Does the user require international ca
 # Assigns number and relevant policies to user
 Try {
     Set-CsUser -Identity $UPN -EnterpriseVoiceEnabled $True -HostedVoicemail $True -OnPremLineURI "tel:+$NextAvail" -ErrorAction stop
-    Grant-CsTenantDialPlan -PolicyName tag:DoCDialPlan -Identity $UPN
-    Grant-CsOnlineVOiceRoutingPolicy -PolicyName "AU-WA-National" -Identity $UPN
+    Grant-CsTenantDialPlan -PolicyName #TenantDialPlan# -Identity $UPN
+    Grant-CsOnlineVOiceRoutingPolicy -PolicyName "#VoiceRoutingPolicy#" -Identity $UPN
     Grant-CsTeamsCallingPolicy -PolicyName AllowCalling -Identity $UPN
     Add-LogEntry -LogLevel Info -LogEntry "$NextAvail has been assigned to $UPN"
 } Catch {
