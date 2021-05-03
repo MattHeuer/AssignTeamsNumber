@@ -32,7 +32,8 @@ Function Add-LogEntry {
 }
 
 $Today = Get-Date -Format "ddMMyyyy"
-$Logfile = "#LogFilePath#\ProvisionTeamsNumberLog_$Today.txt"
+$Logfile = "\\dhw.wa.gov.au\CorporateData\IS\TSS\Support Centre\EntOps\Scripts\Logs\ProvisionTeamsNumberLog_$Today.txt"
+$Admin = $env:UserName
 
 # Checks for an active session and then connects to Skype for Business Online
 $getsessions = Get-PSSession | Select-Object -Property State, Name
@@ -47,31 +48,32 @@ If ($isconnected -ne "True") {
     Add-LogEntry -LogLevel Error -LogEntry "SFBOnline failed to connect, exiting script"
     Exit
 }}
-Add-LogEntry -LogLevel Info -LogEntry "Connection established to SFBOnline"
+Add-LogEntry -LogLevel Info -LogEntry "Connection established to SFBOnline as $Admin"
 
 $UPN = Read-Host "Enter the affected users UPN"
 
 # Queries the account to determine if it already has an active Teams license, then checks to see if they already have a number assgined. If both of these checks are passed the script will continue otherwise it will exit.
 Add-LogEntry -LogLevel Info -LogEntry "Checking $UPN in SFBOnline..."
 $Number = Get-CsOnlineUser $UPN | Select-Object -ExpandProperty LineURI
-$License = ((Get-ADUser -Filter "UserPrincipalName -eq '$UPN'" -Properties *).memberof -like "#Name of the group that provisions Teams licenses#*")
+$License = ((Get-ADUser -Filter "UserPrincipalName -eq '$UPN'" -Properties *).memberof -like "CN=APP_Microsoft_Office_365_PhoneSystem*")
 if (!$License) {
     Add-LogEntry -LogLevel Error -LogEntry "$UPN doesn't have a Teams license, exiting script"
     Exit
-} elseif ($License -eq '#Name of the group that provisions Teams licenses#' -and $number -gt 0) {
+} elseif ($License -eq 'CN=APP_Microsoft_Office_365_PhoneSystem,OU=Application Permissioning Groups,OU=Groups,OU=Housing,DC=dhw,DC=wa,DC=gov,DC=au' -and $number -gt 0) {
     Add-LogEntry -LogLevel Warning -LogEntry "$UPN already has $Number assigned to them in SFBOnline!"
     Exit
-} elseif ($License -eq '#Name of the group that provisions Teams licenses#' -and $number -lt 1) {
+} elseif ($License -eq 'CN=APP_Microsoft_Office_365_PhoneSystem,OU=Application Permissioning Groups,OU=Groups,OU=Housing,DC=dhw,DC=wa,DC=gov,DC=au' -and $number -lt 1) {
     Add-LogEntry -LogLevel Info -LogEntry "$UPN has a license but no number assigned"
 }
 
 # Enter the next available number within the allocated range and select Y or N to enable no caller ID and international calling. 
 $NextAvail = Read-Host -Prompt "Enter the next available number you want to assign to the user"
 Add-LogEntry -LogLevel Info -LogEntry "Checking $NextAvail is available in SFBOnline..."
-if (Get-CsOnlineUser | Where-Object {$_.LineURI -eq "tel:+$NextAvail"}) {
-    Add-LogEntry -LogLevel Error -LogEntry "$NextAvail is already assigned, please try again"
+$NumberQuery = Get-CsOnlineUser -filter "LineURI -eq 'tel:+$NextAvail'" | Select-Object -ExpandProperty UserPrincipalName
+if ($NumberQuery) {
+    Add-LogEntry -LogLevel Error -LogEntry "$NextAvail is already assigned to $NumberQuery please try again"
     Exit
-} Else {
+} ElseIf (!$NumberQuery) {
     Add-LogEntry -LogLevel Info -LogEntry "$NextAvail is available to assign"
 }
 $NoCallerID = Read-Host -Prompt "Does the user require their Caller ID to be blocked? [Y/N]"
@@ -95,7 +97,6 @@ if ($NoCallerID -like 'y') {
     Add-LogEntry -LogLevel Info -LogEntry "Set CallingLineIdentity policy to Anonymous"
 } elseif ($NoCallerID -like 'n') {
     Continue
-    Add-LogEntry -LogLevel Info -LogEntry "CallingLineIdentity policy set to default"
 } else {
     Add-LogEntry -LogLevel Error -LogEntry "Input not valid, CallingLineIdentity policy set to default"
 }
@@ -106,9 +107,6 @@ if ($InternationalPolicy -like 'y') {
     Add-LogEntry -LogLevel Info -LogEntry "Set VoiceRoutingPolicy policy to TeamsUnRestrictedVoiceRoutingPolicy"
 } elseif ($InternationalPolicy -like 'n') {
     Continue
-    Add-LogEntry -LogLevel Info -LogEntry "VoiceRoutingPolicy policy set to default"
 } else {
     Add-LogEntry -LogLevel Error -LogEntry "Input not valid, VoiceRoutingPolicy policy set to default"
 }
-
-Add-LogEntry -LogLevel Info -LogEntry "Script completed for $UPN"
